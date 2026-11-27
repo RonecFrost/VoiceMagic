@@ -1,24 +1,27 @@
 modLoader="javafml"
 loaderVersion="[4,)"
 license="MIT"
-
 [[mods]]
 modId="voicemagic"
-version="0.3.0"
-displayName="Voice Magic - Multiconcept Voice Casting"
+version="0.4.0"
+displayName="Voice Magic - Ars Nouveau Incantations"
 authors="Ronec / collaborative prototype"
-description='''Train custom sounds for Projectile, Gamemode, target selectors, and vanilla potion effects; assemble up to three concepts and cast them by voice.'''
-
+description='''Speak player-trained phrases to cast stored Ars Nouveau spells, or improvise spells by speaking trained glyph names in sequence.'''
 [[dependencies.voicemagic]]
 modId="neoforge"
 type="required"
 versionRange="[21.1.0,)"
 ordering="NONE"
 side="BOTH"
-
 [[dependencies.voicemagic]]
 modId="minecraft"
 type="required"
 versionRange="[1.21.1,1.21.2)"
 ordering="NONE"
+side="BOTH"
+[[dependencies.voicemagic]]
+modId="ars_nouveau"
+type="required"
+versionRange="[5.11.5,)"
+ordering="AFTER"
 side="BOTH"
