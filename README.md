@@ -1,35 +1,34 @@
-# Voice Magic - Ars Nouveau Incantations (v0.4.0)
+# Voice Magic - Ars Nouveau Incantations v0.5.0
 
-Minecraft **1.21.1**, **NeoForge** add-on. **Ars Nouveau is mandatory** (install it and its dependencies from CurseForge).
+Minecraft **1.21.1**, **NeoForge**. Requires Ars Nouveau (tested at compile time against **5.13.5**).
+Install Ars Nouveau and its dependencies via CurseForge. Place only one `voicemagic` JAR in mods.
 
-All speech is recorded and recognized locally. Five pronunciation samples teach a personal phrase or glyph word. Voice audio is **not uploaded**; derived acoustic templates are stored in `config/voicemagic/profiles/<player-uuid>.json`.
+## Features
 
-## The two casting modes
-
-**Saved spells:** Use Ars Nouveau's normal spell crafting GUI to build and save a spell in your book. Click the small **Voice** button above the open book, switch to the **Saved Spells** tab, select that spell, and record your phrase five times. Hold the Ars Nouveau book in your main hand or offhand, hold **Left Alt**, speak the entire trained phrase, and release Alt to cast. Changing the saved spell's glyph recipe invalidates the old voice binding; retrain it.
-
-**Improvised glyphs:** From the same **Voice** screen choose **Individual Glyphs**. You can train each glyph that you have actually unlocked in Ars Nouveau. Change casting mode to **IMPROVISED GLYPHS** with the button at the bottom of the screen or the keybind below. Hold Alt for the whole phrase and speak each known glyph word in order (brief pause between words). Release Alt to cast the constructed Ars spell. Spell shapes, mana, validators and glyph limits still belong to Ars.
+- **Complete incantations:** Save a spell using the Ars Nouveau spell crafting menu. Click its new **Voice** button, open the **Saved Spells** tab, and train a unique utterance five times. Hold Left Alt with the book in hand, speak your phrase, and release to cast the saved Ars spell.
+- **Improvised glyph riffs:** Under **Individual Glyphs** train your own words for every glyph you have learned in Ars Nouveau. Switch to Improvised Glyph mode with the in-book toggle or semicolon. Hold Left Alt, speak one continuous string of glyph words **without pauses**, and release to cast. Pauses also work. Backspace removes a committed recognized glyph.
+- **Visual HUD:** While Alt is held, a small reactive circular ring gently cycles colors. Complete-spell mode displays the recognized spell's initial form glyph and saved spell name. Improvised mode arranges each identified glyph's Ars Nouveau item icon clockwise around the ring. The ring disappears immediately when Alt is released.
+- **Recording playback:** Each new enrollment stores five compressed 16 kHz audio samples **locally**; click **Play random recording (5/5)** to hear a randomly selected one. Old v0.4 voice profiles stored only acoustic templates and cannot replay until retrained. Existing trained words remain usable without retraining.
 
 ## Controls
 
-* **V** - Opens voice training with an Ars spellbook in hand.
-* **Left Alt (hold)** - Listen and populate glyph/phrase slots; **release** to cast.
-* **Semicolon (;)** - Toggle Saved Spell vs Improvised Glyph mode.
-* **Backspace** - Remove the most recently recognized word while listening.
+- **V**: open voice training with an Ars Nouveau spellbook in your hand
+- **Hold Left Alt**: listen to the microphone, including an uninterrupted riff
+- **Release Left Alt**: cast the recognized spell through Ars Nouveau
+- **Backspace while speaking**: undo the last completed glyph
+- **Semicolon (;)**: toggle Saved Spell and Improvised Glyph casting modes
 
-All keys are rebindable in Minecraft controls.
+Keys can be rebound in Minecraft controls.
 
-## Technical notes / test scope
+## Technical and privacy notes
 
-* Only a spellbook actually **held** in main or offhand works; items elsewhere in inventory and Curios slots are not supported in this first add-on release.
-* Only glyphs Ars Nouveau says you have learned appear in the improvised training tab.
-* Every voice spell request is validated on the server against the held book, glyph knowledge, spell tier, normal Ars Nouveau spell validation, and Ars mana.
-* Voice recognizer is an experimental locally trained MFCC-like / DTW matcher. It may confuse similar sounds, especially across large vocabularies. Start with clearly different words.
-* The add-on adds a **Voice** button to the real Ars spell crafting screen. A dedicated voice-mode key replaces the proposed extra radial-wheel slice for v0.4; adding a native wheel segment is a later enhancement.
-* Legacy v0.3 command spells and standalone projectile were removed from this add-on.
-* Install the add-on on both server and client for multiplayer.
-* The source builds with Java 21 through GitHub Actions. The normal downloadable artifact is `voicemagic-0.4.0.jar`.
+The recognizer uses fully offline, locally trained spectral patterns. Connected speech is a **prototype**, using template matching and a constrained segmental decoder; similar-sounding words or very rapid articulation may need more calibration. It never sends microphone audio over the network; only a recognized spell ID or glyph sequence travels to the server.
 
-## Licensing
+Profiles: `config/voicemagic/profiles/<player-uuid>.json`
+New playback recordings (compressed raw audio): `config/voicemagic/recordings/<player-uuid>/`
 
-Ars Nouveau is a separate mod. This repository contains only Voice Magic's own code; it does not redistribute the Ars Nouveau JAR or assets.
+The user can delete voice recordings via **Forget & retrain**; data stays on their computer. Existing v0.4 profiles with no audio files can continue casting normally. Make a backup before upgrading if you value recorded samples.
+
+The server verifies the held spellbook, glyph knowledge and tier, and defers execution, costs and validity to Ars Nouveau. For multiplayer, install the add-on on both server and client. A physical Ars Nouveau book must still be held in either hand.
+
+The voice GUI now draws a single opaque panel and then its interactive controls/text; no post-panel blur hides the text. UI scaling and microphone latency still need real in-game testing.
