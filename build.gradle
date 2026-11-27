@@ -16,18 +16,17 @@ neoForge {
 }
 repositories {
     mavenCentral()
-    maven { name='OctoStudios'; url='https://maven.octo-studios.com/releases' }
-    maven { name='GeckoLib'; url='https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/' }
-    maven { name='Illusive'; url='https://maven.theillusivec4.top/' }
+    exclusiveContent {
+        forRepository { maven { url "https://cursemaven.com" } }
+        filter { includeGroup "curse.maven" }
+    }
     maven { name='BlameJared'; url='https://maven.blamejared.com/' }
-    maven { name='Forge'; url='https://maven.minecraftforge.net' }
-    maven { url='https://jitpack.io' }
+    maven { name='GeckoLib'; url='https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/' }
 }
 dependencies {
-    implementation "com.hollingsworth.ars_nouveau:ars_nouveau-${minecraft_version}:${ars_version}"
-    compileOnly "com.hollingsworth.nuggets:nuggets-neoforge-1.21:1.0.7.38"
+    // Exactly the current 1.21.1 NeoForge release of Ars Nouveau on CurseForge.
+    implementation "curse.maven:ars-nouveau-401955:9521184"
+    compileOnly "com.hollingsworth.nuggets:nuggets-neoforge-1.21:1.0.11.42"
     compileOnly "software.bernie.geckolib:geckolib-neoforge-${minecraft_version}:4.6.6"
-    compileOnly "vazkii.patchouli:Patchouli:1.21-87-NEOFORGE-SNAPSHOT"
-    compileOnly 'com.github.glitchfiend:TerraBlender-neoforge:1.21-4.0.0.0'
 }
 tasks.withType(JavaCompile).configureEach { options.encoding='UTF-8' }
