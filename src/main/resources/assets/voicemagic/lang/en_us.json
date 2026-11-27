@@ -3,5 +3,5 @@
   "key.voicemagic.cast": "Hold to Speak / Release to Cast",
   "key.voicemagic.book": "Open Ars Voice Training",
   "key.voicemagic.mode": "Toggle Saved Spells / Improvised Glyphs",
-  "key.voicemagic.undo": "Undo Last Word"
+  "key.voicemagic.undo": "Undo Last Glyph (while listening)"
 }
