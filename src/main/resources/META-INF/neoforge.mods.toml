@@ -4,10 +4,10 @@ license="MIT"
 
 [[mods]]
 modId="voicemagic"
-version="0.2.0"
-displayName="Voice Magic - Spoken Projectile Prototype"
+version="0.3.0"
+displayName="Voice Magic - Multiconcept Voice Casting"
 authors="Ronec / collaborative prototype"
-description='''Teach a personal invented word to an offline recognizer, then cast a translucent rotating projectile by voice.'''
+description='''Train custom sounds for Projectile, Gamemode, target selectors, and vanilla potion effects; assemble up to three concepts and cast them by voice.'''
 
 [[dependencies.voicemagic]]
 modId="neoforge"
