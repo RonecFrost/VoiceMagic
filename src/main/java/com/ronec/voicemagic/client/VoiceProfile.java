@@ -3,6 +3,7 @@ package com.ronec.voicemagic.client;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.ronec.voicemagic.audio.VoiceFeatures;
+import com.ronec.voicemagic.SpellConcepts;
 import net.minecraft.client.Minecraft;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -17,7 +18,6 @@ public final class VoiceProfile {
     }
     public record Match(String concept,double score) {}
     private static final Gson GSON=new GsonBuilder().setPrettyPrinting().create();
-    private static final Set<String> CONCEPTS=Set.of("projectile");
     private final Map<String,Entry> words=new HashMap<>();
     private final Path file;
     private VoiceProfile(Path file){this.file=file;}
@@ -29,7 +29,7 @@ public final class VoiceProfile {
             if(Files.exists(file)) {
                 Stored state=GSON.fromJson(Files.readString(file,StandardCharsets.UTF_8),Stored.class);
                 if(state!=null && state.words!=null) {
-                    for(var w:state.words.entrySet()) if(CONCEPTS.contains(w.getKey()) && w.getValue()!=null && w.getValue().templates!=null)
+                    for(var w:state.words.entrySet()) if(SpellConcepts.isTrainable(w.getKey()) && w.getValue()!=null && w.getValue().templates!=null)
                         profile.words.put(w.getKey(),w.getValue());
                 }
             }
@@ -49,15 +49,15 @@ public final class VoiceProfile {
         return entry==null?0:entry.templates.size();
     }
     public synchronized String alias(String concept) {
-        Entry entry=words.get(concept);return entry==null?concept:entry.alias;
+        Entry entry=words.get(concept);return entry==null?SpellConcepts.label(concept):entry.alias;
     }
     public synchronized void reset(String concept) { words.remove(concept);save(); }
     public synchronized int teach(String concept,String alias,short[] raw) {
-        if(!CONCEPTS.contains(concept))return 0;
+        if(!SpellConcepts.isTrainable(concept))return 0;
         double[][] sample=VoiceFeatures.extract(raw);
         if(sample.length<6)return count(concept);
         Entry entry=words.computeIfAbsent(concept,c->new Entry());
-        String cleaned=alias==null?concept:alias.strip();
+        String cleaned=alias==null?SpellConcepts.label(concept):alias.strip();
         if(cleaned.length()>24) cleaned=cleaned.substring(0,24);
         if(!entry.alias.equals(cleaned))entry.templates.clear();
         entry.alias=cleaned.isEmpty()?concept:cleaned;
