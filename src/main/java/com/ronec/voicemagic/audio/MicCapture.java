@@ -2,9 +2,8 @@ package com.ronec.voicemagic.audio;
 
 import javax.sound.sampled.*;
 import java.io.ByteArrayOutputStream;
-import java.util.function.Consumer;
 
-/** One locally accessed microphone stream. Silence separates utterances. */
+/** One locally accessed mic stream. A deliberate short pause separates individual words. */
 public final class MicCapture {
     public interface Listener {
         void onUtterance(short[] pcm);
@@ -45,7 +44,8 @@ public final class MicCapture {
         ByteArrayOutputStream utterance = new ByteArrayOutputStream();
         boolean talking=false;
         int silence=0, voiced=0;
-        long lastPreview=0;
+        ByteArrayOutputStream preRoll = new ByteArrayOutputStream();
+        int preRollMax; // 120 ms of leading sound preserved
         double noise=100;
         int sampleRate=16000;
         try {
@@ -65,6 +65,7 @@ public final class MicCapture {
             }
             if (opened==null) throw new LineUnavailableException("No compatible 16 kHz or 48 kHz microphone found. Check Windows microphone permissions and input device.");
             line=opened;
+            preRollMax=(int)(sampleRate*.12)*2;
             int chunkSamples=sampleRate/50; // 20ms
             byte[] buffer=new byte[chunkSamples*2];
             opened.start();
@@ -83,24 +84,32 @@ public final class MicCapture {
                 boolean voice=rms>Math.max(260,noise*2.8);
                 if (!voice && !talking) noise=Math.min(1500,noise*.96+rms*.04);
                 if (voice) {
+                    if(!talking && preRoll.size()>0) {
+                        byte[] prefix=preRoll.toByteArray();
+                        utterance.write(prefix,0,prefix.length);
+                        preRoll.reset();
+                    }
                     talking=true; silence=0; voiced+=samples;
                     utterance.write(buffer,0,read);
                 } else if(talking) {
                     silence+=samples;
                     utterance.write(buffer,0,read);
-                }
-                if(talking && voiced>=sampleRate*.48) {
-                    long now=System.nanoTime();
-                    if(now-lastPreview>850_000_000L) {
-                        lastPreview=now;
-                        byte[] clip=utterance.toByteArray();
-                        listener.onPreview(toShorts(clip,clip.length,sampleRate));
+                } else {
+                    // Maintain a small ring of recent raw audio, so quiet first
+                    // consonants aren't lost when voice activity first triggers.
+                    if(preRoll.size()+read>preRollMax){
+                        byte[] existing=preRoll.toByteArray();
+                        int keep=Math.max(0,preRollMax-read);
+                        preRoll.reset();
+                        if(keep>0)preRoll.write(existing,Math.max(0,existing.length-keep),Math.min(keep,existing.length));
                     }
+                    preRoll.write(buffer,0,read);
                 }
-                if(talking && (silence>=sampleRate*.32 || utterance.size()>=sampleRate*2*12.0)) {
-                    int trailingBytes=(int)(Math.min(silence,sampleRate*.32)*2);
+                // Separate words only after a real pause, not after each phoneme.
+                if(talking && (silence>=sampleRate*.44 || utterance.size()>=sampleRate*2*12.0)) {
+                    int discardTail=(int)(Math.max(0,silence-sampleRate*.08)*2);
                     if (voiced>=sampleRate*.14) {
-                        short[] audio=toShorts(utterance.toByteArray(),Math.max(0,utterance.size()-trailingBytes), sampleRate);
+                        short[] audio=toShorts(utterance.toByteArray(),Math.max(0,utterance.size()-discardTail), sampleRate);
                         listener.onUtterance(audio);
                         if(stopAfterOne) { running=false; break; }
                     }
