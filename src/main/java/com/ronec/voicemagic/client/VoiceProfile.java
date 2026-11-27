@@ -3,7 +3,6 @@ package com.ronec.voicemagic.client;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.ronec.voicemagic.audio.VoiceFeatures;
-import com.ronec.voicemagic.audio.VoicePhraseDecoder;
 import com.ronec.voicemagic.audio.VoiceRecordings;
 import com.ronec.voicemagic.audio.ManualMicCapture;
 import com.ronec.voicemagic.ArsVoiceSupport;
@@ -119,15 +118,6 @@ public final class VoiceProfile {
         }
         if(bestConcept==null || (Double.isFinite(second) && second-best<Math.max(.015,best*.12)))return null;
         return new Match(bestConcept,best);
-    }
-    /** Decode a full spoken phrase into known glyphs, even without pauses between words. */
-    public synchronized List<String> matchContinuous(short[] raw,Predicate<String> allowed,int maxWords) {
-        List<VoicePhraseDecoder.Template> dictionary=new ArrayList<>();
-        for(var e:words.entrySet()) {
-            if(allowed.test(e.getKey())&&e.getValue().templates.size()>=5)
-                dictionary.add(new VoicePhraseDecoder.Template(e.getKey(),List.copyOf(e.getValue().templates)));
-        }
-        return VoicePhraseDecoder.decode(raw,dictionary,maxWords);
     }
     public synchronized List<String> learned() {
         List<String> out=new ArrayList<>();
