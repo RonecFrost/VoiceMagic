@@ -31,9 +31,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Ars Nouveau voice casting with continuous phrase detection and an unobtrusive audio-reactive ring. */
+/** Isolated spoken glyphs, a crosshair-centered reactive waveform, and native Ars casting. */
 @EventBusSubscriber(modid=VoiceMagicMod.MOD_ID,value=Dist.CLIENT)
 public final class VoiceClient {
     private static final KeyMapping CAST=new KeyMapping("key.voicemagic.cast",KeyConflictContext.IN_GAME,
@@ -43,7 +42,7 @@ public final class VoiceClient {
     private static final KeyMapping MODE=new KeyMapping("key.voicemagic.mode",KeyConflictContext.IN_GAME,
         InputConstants.Type.KEYSYM,GLFW.GLFW_KEY_SEMICOLON,"key.categories.voicemagic");
     private static final KeyMapping UNDO=new KeyMapping("key.voicemagic.undo",KeyConflictContext.IN_GAME,
-        InputConstants.Type.KEYSYM,GLFW.GLFW_KEY_BACKSPACE,"key.categories.voicemagic");
+        InputConstants.Type.KEYSYM,GLFW.GLFW_KEY_LEFT_CONTROL,"key.categories.voicemagic");
 
     private static UUID loadedId;
     private static VoiceProfile profile;
@@ -51,8 +50,6 @@ public final class VoiceClient {
     private static boolean capturing,finishing,cancel,wasCastingKeyDown,liveMode;
     private static InteractionHand heldHand;
     private static final List<String> spoken=new ArrayList<>();
-    private static volatile List<String> preview=List.of();
-    private static final AtomicBoolean previewBusy=new AtomicBoolean();
     private static long captureSession;
     private static double smoothLevel;
     private VoiceClient(){}
@@ -90,7 +87,7 @@ public final class VoiceClient {
             cancel=true;captureSession++;
             if(mic!=null)mic.stop();
             capturing=false;finishing=false;wasCastingKeyDown=false;
-            preview=List.of();spoken.clear();profile=null;loadedId=null;return;
+            spoken.clear();profile=null;loadedId=null;return;
         }
         profile();
         while(BOOK.consumeClick()){
@@ -103,17 +100,17 @@ public final class VoiceClient {
         while(MODE.consumeClick())if(mc.screen==null)toggleMode();
         if(mc.screen!=null){
             if(capturing&&mic!=null){cancel=true;captureSession++;mic.stop();capturing=false;}
-            preview=List.of();wasCastingKeyDown=false;return;
+            wasCastingKeyDown=false;return;
         }
         while(UNDO.consumeClick())if(capturing){
             if(!spoken.isEmpty())spoken.remove(spoken.size()-1);
-            preview=List.of();
+            
         }
         boolean down=CAST.isDown();
         if(down&&!wasCastingKeyDown&&!capturing&&!finishing)start();
         else if(!down&&wasCastingKeyDown&&capturing&&mic!=null){
             capturing=false;finishing=true;
-            preview=List.of();smoothLevel=0;
+            smoothLevel=0;
             mic.stop();
         }
         wasCastingKeyDown=down;
@@ -143,7 +140,7 @@ public final class VoiceClient {
             announce("Open the Voice book and train "+(liveMode?"glyphs":"a saved spell"));
             return;
         }
-        spoken.clear();preview=List.of();cancel=false;capturing=true;finishing=false;
+        spoken.clear();cancel=false;capturing=true;finishing=false;
         smoothLevel=0;
         final long session=++captureSession;
         final boolean usingGlyphs=liveMode;
@@ -151,43 +148,21 @@ public final class VoiceClient {
         final Set<String> accepted=Set.copyOf(allowed);
 
         mic=new MicCapture(false,new MicCapture.Listener(){
-            @Override public void onPreview(short[] sample){
-                if(!usingGlyphs||!previewBusy.compareAndSet(false,true))return;
-                Thread worker=new Thread(()->{
-                    try {
-                        List<String> provisional=p.matchContinuous(sample,accepted::contains,20);
-                        Minecraft.getInstance().execute(()->{
-                            if(captureSession==session&&capturing&&CAST.isDown()&&!cancel)
-                                preview=provisional;
-                        });
-                    }finally{previewBusy.set(false);}
-                },"VoiceMagic-riff-preview");
-                worker.setDaemon(true);worker.start();
-            }
             @Override public void onUtterance(short[] sample){
-                List<String> matched=new ArrayList<>();
-                if(usingGlyphs) {
-                    matched.addAll(p.matchContinuous(sample,accepted::contains,20));
-                    // Keep the old single-word behavior as a fallback for short isolated words.
-                    if(matched.isEmpty()){
-                        VoiceProfile.Match m=p.match(sample,accepted::contains);
-                        if(m!=null)matched.add(m.concept());
-                    }
-                }else{
-                    VoiceProfile.Match m=p.match(sample,accepted::contains);
-                    if(m!=null)matched.add(m.concept());
-                }
+                // One utterance is matched against ONE trained glyph, exactly
+                // as before the experimental connected-speech decoder.
+                VoiceProfile.Match match=p.match(sample,accepted::contains);
                 Minecraft.getInstance().execute(()->{
                     if(captureSession!=session||cancel||(!capturing&&!finishing))return;
-                    preview=List.of();
+                    if(match==null)return; // ambiguous sound: try the word again
                     int limit=usingGlyphs?20:1;
-                    for(String id:matched)if(spoken.size()<limit)spoken.add(id);
+                    if(spoken.size()<limit)spoken.add(match.concept());
                 });
             }
             @Override public void onFinished(){
                 Minecraft.getInstance().execute(()->{
                     if(captureSession!=session)return;
-                    mic=null;capturing=false;finishing=false;preview=List.of();
+                    mic=null;capturing=false;finishing=false;
                     if(!cancel){
                         List<String> completed=List.copyOf(spoken);
                         if(completed.isEmpty())announce("No incantation recognized");
@@ -228,40 +203,65 @@ public final class VoiceClient {
 
     @SubscribeEvent public static void hud(RenderGuiEvent.Post event){
         Minecraft mc=Minecraft.getInstance();
-        // Let go of ALT and the ring vanishes immediately, even if the mic is processing.
+        // Nothing remains on screen when ALT is released.
         if(mc.player==null||mc.options.hideGui||mc.screen!=null||!capturing||!CAST.isDown())return;
         GuiGraphics g=event.getGuiGraphics();
-        int cx=g.guiWidth()/2,cy=g.guiHeight()/2+27;
+        int cx=g.guiWidth()/2;
+        int cy=g.guiHeight()/2; // align with the actual center crosshair
+
         double volume=mic==null?0:mic.level();
-        smoothLevel=smoothLevel*.62+volume*.38;
+        // Old ring used only a few pixels of movement; significantly amplify
+        // quiet microphone levels, but smooth between rendered frames.
+        double input=Math.min(1.0,Math.pow(Math.min(1.0,volume*4.8),.68));
+        smoothLevel=smoothLevel*.43+input*.57;
+
+        // One closed circle consisting of two independent waveform semicircles.
+        // Right and left share exactly the top/bottom endpoints, with an
+        // envelope which approaches zero at those points.
         double t=System.nanoTime()*1e-9;
-        float hue=(float)((t/24)%1.0);
-        for(int ring=0;ring<2;ring++){
-            int points=144;
-            double radius=(ring==0?41:46)+smoothLevel*(ring==0?2.5:5);
-            int size=ring==0?2:Math.max(2,(int)(2+smoothLevel*3));
-            int alpha=ring==0?190:115;
-            for(int i=0;i<points;i++){
-                double angle=i*2*Math.PI/points-Math.PI/2;
-                float shade=(hue+(float)i/points*.075f)%1.0f;
-                int rgb=Color.HSBtoRGB(shade,.54f,ring==0?.97f:.84f)&0xFFFFFF;
+        float hue=(float)((t/35.0)%1.0);
+        final int segments=112;
+        final double baseRadius=40;
+        for(int half=0;half<2;half++){
+            int priorX=0,priorY=0;
+            boolean hasPrevious=false;
+            for(int i=0;i<=segments;i++){
+                double u=(double)i/segments;
+                double angle=-Math.PI/2+(half==0?1:-1)*Math.PI*u;
+                double envelope=Math.pow(Math.sin(Math.PI*u),.75);
+                double waveform=Math.sin(u*17*Math.PI-t*13.0+half*.32)*.79
+                    +Math.sin(u*33*Math.PI+t*8.5+half*1.20)*.21;
+                double displacement=(1.35+smoothLevel*23.5)*envelope*waveform;
+                double radius=baseRadius+displacement;
                 int px=cx+(int)Math.round(Math.cos(angle)*radius);
                 int py=cy+(int)Math.round(Math.sin(angle)*radius);
-                g.fill(px-size/2,py-size/2,px+size/2+1,py+size/2+1,(alpha<<24)|rgb);
+                float shade=(hue+(float)u*.09f+half*.012f)%1.0f;
+                int rgb=Color.HSBtoRGB(shade,.62f,.99f)&0xFFFFFF;
+                int argb=(225<<24)|rgb;
+                // Interpolate pixel stamps so even energetic waves remain
+                // connected and don't become disconnected dots.
+                if(hasPrevious){
+                    int steps=Math.max(Math.abs(px-priorX),Math.abs(py-priorY));
+                    for(int d=0;d<=steps;d++){
+                        double f=steps==0?0:(double)d/steps;
+                        int xx=(int)Math.round(priorX+(px-priorX)*f);
+                        int yy=(int)Math.round(priorY+(py-priorY)*f);
+                        g.fill(xx-1,yy-1,xx+2,yy+2,argb);
+                    }
+                }else{
+                    g.fill(px-1,py-1,px+2,py+2,argb);
+                }
+                priorX=px;priorY=py;hasPrevious=true;
             }
         }
-        List<String> icons=new ArrayList<>(spoken);
-        if(!preview.isEmpty()&&liveMode){
-            for(String word:preview)if(icons.size()<20)icons.add(word);
-        }
-        if(liveMode)drawGlyphs(g,icons,cx,cy);
-        else if(!icons.isEmpty())drawSavedSpell(g,icons.getFirst(),cx,cy);
+        if(liveMode)drawGlyphs(g,spoken,cx,cy);
+        else if(!spoken.isEmpty())drawSavedSpell(g,spoken.getFirst(),cx,cy);
     }
 
     private static void drawGlyphs(GuiGraphics g,List<String> glyphs,int cx,int cy){
         int count=Math.min(glyphs.size(),20);
         if(count==0)return;
-        double radius=59.0;
+        double radius=69.0;
         for(int i=0;i<count;i++){
             String key=glyphs.get(i);
             if(!key.startsWith("glyph:"))continue;
