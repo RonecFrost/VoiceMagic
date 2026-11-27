@@ -128,6 +128,15 @@ public final class ManualMicCapture {
      * the original whole clip when its level is too low to safely trim.
      */
     public static short[] trimConservatively(short[] raw){
+        return trimWithPadding(raw,4000); // 250 ms retained before/after speech
+    }
+
+    /** Only for spectral matching. Playback keeps the longer untrimmed take. */
+    public static short[] trimForMatching(short[] raw){
+        return trimWithPadding(raw,1280); // 80 ms retained before/after speech
+    }
+
+    private static short[] trimWithPadding(short[] raw,int pad){
         if(raw==null||raw.length<2400)return raw==null?new short[0]:raw;
         int block=160; // 10 ms
         int count=raw.length/block;
@@ -147,8 +156,8 @@ public final class ManualMicCapture {
         while(first<count&&rms[first]<threshold)first++;
         while(last>=0&&rms[last]<threshold)last--;
         if(first>=count||last<first)return raw;
-        int start=Math.max(0,first*block-4000);
-        int end=Math.min(raw.length,(last+1)*block+4000);
+        int start=Math.max(0,first*block-pad);
+        int end=Math.min(raw.length,(last+1)*block+pad);
         if(end-start<2400)return raw;
         return java.util.Arrays.copyOfRange(raw,start,end);
     }
