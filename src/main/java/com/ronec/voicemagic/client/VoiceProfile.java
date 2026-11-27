@@ -94,7 +94,7 @@ public final class VoiceProfile {
     }
     public synchronized Match match(short[] raw) { return match(raw, s -> true); }
     public synchronized Match match(short[] raw, Predicate<String> allowed) {
-        double[][] input=VoiceFeatures.extract(raw);
+        double[][] input=VoiceFeatures.extract(ManualMicCapture.trimForMatching(raw));
         if(input.length<6)return null;
         String bestConcept=null;
         double best=Double.POSITIVE_INFINITY, second=Double.POSITIVE_INFINITY;
