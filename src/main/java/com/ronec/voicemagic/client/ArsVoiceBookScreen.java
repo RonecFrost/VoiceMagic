@@ -70,19 +70,19 @@ public final class ArsVoiceBookScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal(
                 "Casting: "+(VoiceClient.isLiveMode()?"IMPROVISED GLYPHS":"SAVED SPELLS")),b->{
                     VoiceClient.toggleMode();
-                    rebuildWidgets();
+                    refreshVoiceWidgets();
                 }).bounds(cx-150,cy+95,300,20).build());
         addRenderableWidget(Button.builder(Component.literal("Back to Ars Book"),b->onClose())
                 .bounds(cx-95,cy+126,190,20).build());
     }
 
     private void switchTab(boolean value) {
-        glyphPage=value;page=0;rebuildWidgets();
+        glyphPage=value;page=0;refreshVoiceWidgets();
     }
     private void changePage(int direction) {
-        page=Math.max(0,page+direction);rebuildWidgets();
+        page=Math.max(0,page+direction);refreshVoiceWidgets();
     }
-    private void rebuildWidgets() {
+    private void refreshVoiceWidgets() {
         clearWidgets();
         init();
     }
