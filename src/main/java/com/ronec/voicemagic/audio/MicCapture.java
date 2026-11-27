@@ -86,7 +86,7 @@ public final class MicCapture {
                     silence+=samples;
                     utterance.write(buffer,0,read);
                 }
-                if(talking && (silence>=sampleRate*.32 || utterance.size()>=sampleRate*2*3.5)) {
+                if(talking && (silence>=sampleRate*.32 || utterance.size()>=sampleRate*2*12.0)) {
                     int trailingBytes=(int)(Math.min(silence,sampleRate*.32)*2);
                     if (voiced>=sampleRate*.14) {
                         short[] audio=toShorts(utterance.toByteArray(),Math.max(0,utterance.size()-trailingBytes), sampleRate);
