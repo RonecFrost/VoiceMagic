@@ -1,37 +1,35 @@
-# VoiceMagic v0.3.0 - NeoForge 1.21.1
+# Voice Magic - Ars Nouveau Incantations (v0.4.0)
 
-An experimental Minecraft mod that recognizes player-trained spoken sounds locally. No language model or online speech service is required.
+Minecraft **1.21.1**, **NeoForge** add-on. **Ars Nouveau is mandatory** (install it and its dependencies from CurseForge).
 
-## Installation
+All speech is recorded and recognized locally. Five pronunciation samples teach a personal phrase or glyph word. Voice audio is **not uploaded**; derived acoustic templates are stored in `config/voicemagic/profiles/<player-uuid>.json`.
 
-Install `voicemagic-0.3.0.jar` in the `mods` folder of a NeoForge Minecraft 1.21.1 profile. For dedicated multiplayer, install the same mod on server and clients.
+## The two casting modes
+
+**Saved spells:** Use Ars Nouveau's normal spell crafting GUI to build and save a spell in your book. Click the small **Voice** button above the open book, switch to the **Saved Spells** tab, select that spell, and record your phrase five times. Hold the Ars Nouveau book in your main hand or offhand, hold **Left Alt**, speak the entire trained phrase, and release Alt to cast. Changing the saved spell's glyph recipe invalidates the old voice binding; retrain it.
+
+**Improvised glyphs:** From the same **Voice** screen choose **Individual Glyphs**. You can train each glyph that you have actually unlocked in Ars Nouveau. Change casting mode to **IMPROVISED GLYPHS** with the button at the bottom of the screen or the keybind below. Hold Alt for the whole phrase and speak each known glyph word in order (brief pause between words). Release Alt to cast the constructed Ars spell. Spell shapes, mana, validators and glyph limits still belong to Ars.
 
 ## Controls
 
-* **V**: open spellbook. All concepts are available immediately in tabs: Spells, Targets, Modes, Effects.
-* Click any concept, choose a personal label, and record **five** separate pronunciations, pausing between each.
-* **Hold Left Alt** while speaking each trained concept separately. Each recognized sound fills one of three slots.
-* **Backspace** while holding Alt removes the most recently recognized concept.
-* **Release Left Alt** to cast your assembled spell. You don't need to carry a spellbook item.
+* **V** - Opens voice training with an Ars spellbook in hand.
+* **Left Alt (hold)** - Listen and populate glyph/phrase slots; **release** to cast.
+* **Semicolon (;)** - Toggle Saved Spell vs Improvised Glyph mode.
+* **Backspace** - Remove the most recently recognized word while listening.
 
-## Spell grammar
+All keys are rebindable in Minecraft controls.
 
-* `Projectile`: launch the original pale rotating bolt. Does not require operator privileges.
-* `Gamemode + Target + Mode`: example `Gamemode + Myself + Creative`.
-* `Effect + Target + Potion Effect`: example `Effect + Myself + Saturation`. Effects are level I for 30 seconds, except instant effects, which apply immediately.
+## Technical notes / test scope
 
-Targets: Myself (@s), Nearest Player (@p), Random Player (@r), All Players (@a), All Entities (@e). Gamemode cannot be used with All Entities.
+* Only a spellbook actually **held** in main or offhand works; items elsewhere in inventory and Curios slots are not supported in this first add-on release.
+* Only glyphs Ars Nouveau says you have learned appear in the improvised training tab.
+* Every voice spell request is validated on the server against the held book, glyph knowledge, spell tier, normal Ars Nouveau spell validation, and Ars mana.
+* Voice recognizer is an experimental locally trained MFCC-like / DTW matcher. It may confuse similar sounds, especially across large vocabularies. Start with clearly different words.
+* The add-on adds a **Voice** button to the real Ars spell crafting screen. A dedicated voice-mode key replaces the proposed extra radial-wheel slice for v0.4; adding a native wheel segment is a later enhancement.
+* Legacy v0.3 command spells and standalone projectile were removed from this add-on.
+* Install the add-on on both server and client for multiplayer.
+* The source builds with Java 21 through GitHub Actions. The normal downloadable artifact is `voicemagic-0.4.0.jar`.
 
-For command-based test spells, Minecraft **cheats/operator level 2 are required**. The server uses its own allowlisted command builder rather than executing arbitrary client text. No custom effect IDs are accepted yet. The game uses vanilla server rules for target selection, effects, and permissions.
+## Licensing
 
-## Voice recordings
-
-Voice training is based on local audio fingerprints and dynamic time warping, not English speech-to-text. Avoid very similar sounds across concepts. Acoustic templates are saved at `config/voicemagic/profiles/<uuid>.json`; raw mic audio is not saved. Using many trained concepts may slow recognition; this prototype needs real-world accuracy testing.
-
-## Building
-
-GitHub Actions will build with Java 21 and Gradle, then upload the compiled JAR under the successful workflow run's Artifacts section.
-
-## Scope
-
-This version is intended for command-word recognition and multi-concept test casting. The concept research, crystal discovery, alchemy, modifier grammar and personalized understanding progression are intentionally deferred.
+Ars Nouveau is a separate mod. This repository contains only Voice Magic's own code; it does not redistribute the Ars Nouveau JAR or assets.
