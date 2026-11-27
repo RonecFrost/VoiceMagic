@@ -1,6 +1,7 @@
 {
-  "key.categories.voicemagic": "Voice Magic",
+  "key.categories.voicemagic": "Ars Voice Incantations",
   "key.voicemagic.cast": "Hold to Speak / Release to Cast",
-  "key.voicemagic.book": "Open Spellbook",
+  "key.voicemagic.book": "Open Ars Voice Training",
+  "key.voicemagic.mode": "Toggle Saved Spells / Improvised Glyphs",
   "key.voicemagic.undo": "Undo Last Word"
 }
