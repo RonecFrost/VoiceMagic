@@ -1,7 +1,7 @@
 name: Build VoiceMagic NeoForge JAR
 on:
   push:
-    branches: [main, ars-voice-addon-v0.4]
+    branches: [main, voice-riff-v0.5]
   workflow_dispatch:
 concurrency:
   group: voicemagic-${{ github.ref }}-build
