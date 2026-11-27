@@ -1,7 +1,6 @@
 package com.ronec.voicemagic.client;
 
 import com.ronec.voicemagic.audio.MicCapture;
-import com.ronec.voicemagic.SpellConcepts;
 import java.util.Locale;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -14,6 +13,7 @@ import net.minecraft.network.chat.Component;
 public final class VoiceTrainerScreen extends Screen {
     private final Screen parent;
     private final String concept;
+    private final String displayName;
     private EditBox word;
     private MicCapture mic;
     private Button recordButton;
@@ -21,10 +21,11 @@ public final class VoiceTrainerScreen extends Screen {
     private int sessionCount;
     private boolean cancelled;
 
-    public VoiceTrainerScreen(Screen parent, String concept) {
-        super(Component.literal("Voice Magic - " + SpellConcepts.label(concept)));
+    public VoiceTrainerScreen(Screen parent, String concept, String displayName) {
+        super(Component.literal("Voice Magic - " + displayName));
         this.parent = parent;
         this.concept = concept;
+        this.displayName = displayName;
     }
 
     @Override protected void init() {
@@ -32,7 +33,7 @@ public final class VoiceTrainerScreen extends Screen {
         word = new EditBox(font, cx - 97, y + 38, 194, 20, Component.literal("Incantation label"));
         word.setMaxLength(24);
         VoiceProfile profile = VoiceClient.profile();
-        word.setValue(profile == null ? "Projectile" : profile.alias(concept));
+        word.setValue(profile == null ? displayName : profile.count(concept)==0 ? displayName : profile.alias(concept));
         addRenderableWidget(word);
         recordButton = addRenderableWidget(Button.builder(Component.literal("Start 5 recordings"), b -> toggleTraining())
                 .bounds(cx - 97, y + 72, 194, 20).build());
@@ -103,8 +104,8 @@ public final class VoiceTrainerScreen extends Screen {
         int cx = width / 2, y = height / 2 - 87;
         g.fill(cx - 121, y - 34, cx + 121, y + 208, 0xE0171C28);
         g.fill(cx - 118, y - 31, cx + 118, y + 205, 0xFF253044);
-        g.drawCenteredString(font, SpellConcepts.label(concept).toUpperCase(Locale.ROOT), cx, y - 20, 0xFFFFFFFF);
-        g.drawCenteredString(font, "Spell known from the beginning", cx, y - 6, 0xFFADC6E2);
+        g.drawCenteredString(font, fit(displayName.toUpperCase(Locale.ROOT),36), cx, y - 20, 0xFFFFFFFF);
+        g.drawCenteredString(font, "Ars Nouveau spell or glyph - training only", cx, y - 6, 0xFFADC6E2);
         g.drawString(font, "Your personal spoken sound:", cx - 97, y + 27, 0xFFE3EDF8);
         int count = VoiceClient.profile() == null ? 0 : VoiceClient.profile().count(concept);
         g.drawCenteredString(font, "Voice samples: " + count + " / 5", cx, y + 137, 0xFF98F8D7);
