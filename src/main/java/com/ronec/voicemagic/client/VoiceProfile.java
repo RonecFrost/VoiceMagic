@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.ronec.voicemagic.audio.VoiceFeatures;
 import com.ronec.voicemagic.audio.VoicePhraseDecoder;
 import com.ronec.voicemagic.audio.VoiceRecordings;
+import com.ronec.voicemagic.audio.ManualMicCapture;
 import com.ronec.voicemagic.ArsVoiceSupport;
 import java.util.function.Predicate;
 import net.minecraft.client.Minecraft;
@@ -72,7 +73,7 @@ public final class VoiceProfile {
     }
     public synchronized int teach(String concept,String alias,short[] raw) {
         if(!ArsVoiceSupport.isConceptKey(concept))return 0;
-        double[][] sample=VoiceFeatures.extract(raw);
+        double[][] sample=VoiceFeatures.extract(ManualMicCapture.trimForMatching(raw));
         if(sample.length<6)return count(concept);
         Entry entry=words.computeIfAbsent(concept,c->new Entry());
         String cleaned=alias==null?concept:alias.strip();
