@@ -3,10 +3,10 @@ loaderVersion="[4,)"
 license="MIT"
 [[mods]]
 modId="voicemagic"
-version="0.4.0"
+version="0.5.0"
 displayName="Voice Magic - Ars Nouveau Incantations"
 authors="Ronec / collaborative prototype"
-description='''Speak player-trained phrases to cast stored Ars Nouveau spells, or improvise spells by speaking trained glyph names in sequence.'''
+description='''Speak entire improvised Ars glyph riffs without pauses, train full spell incantations, replay five stored audio recordings, and use an animated circular HUD.'''
 [[dependencies.voicemagic]]
 modId="neoforge"
 type="required"
