@@ -3,6 +3,8 @@ package com.ronec.voicemagic.client;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.ronec.voicemagic.audio.VoiceFeatures;
+import com.ronec.voicemagic.audio.VoicePhraseDecoder;
+import com.ronec.voicemagic.audio.VoiceRecordings;
 import com.ronec.voicemagic.ArsVoiceSupport;
 import java.util.function.Predicate;
 import net.minecraft.client.Minecraft;
@@ -21,7 +23,12 @@ public final class VoiceProfile {
     private static final Gson GSON=new GsonBuilder().setPrettyPrinting().create();
     private final Map<String,Entry> words=new HashMap<>();
     private final Path file;
-    private VoiceProfile(Path file){this.file=file;}
+    private final Path recordingsRoot;
+    private VoiceProfile(Path file){
+        this.file=file;
+        this.recordingsRoot=file.getParent().getParent().resolve("recordings")
+                .resolve(file.getFileName().toString().replace(".json",""));
+    }
 
     public static VoiceProfile load(UUID uuid) {
         Path file=Minecraft.getInstance().gameDirectory.toPath().resolve("config/voicemagic/profiles/"+uuid+".json");
@@ -52,7 +59,17 @@ public final class VoiceProfile {
     public synchronized String alias(String concept) {
         Entry entry=words.get(concept);return entry==null?concept:entry.alias;
     }
-    public synchronized void reset(String concept) { words.remove(concept);save(); }
+    public synchronized void reset(String concept) {
+        words.remove(concept);
+        VoiceRecordings.clear(recordingsRoot,concept);
+        save();
+    }
+    public synchronized int availablePlaybackSamples(String concept) {
+        return VoiceRecordings.count(recordingsRoot,concept);
+    }
+    public synchronized boolean playRandomRecording(String concept) {
+        return VoiceRecordings.playRandom(recordingsRoot,concept);
+    }
     public synchronized int teach(String concept,String alias,short[] raw) {
         if(!ArsVoiceSupport.isConceptKey(concept))return 0;
         double[][] sample=VoiceFeatures.extract(raw);
@@ -60,9 +77,19 @@ public final class VoiceProfile {
         Entry entry=words.computeIfAbsent(concept,c->new Entry());
         String cleaned=alias==null?concept:alias.strip();
         if(cleaned.length()>24) cleaned=cleaned.substring(0,24);
-        if(!entry.alias.equals(cleaned))entry.templates.clear();
+        if(!entry.alias.equals(cleaned)) {
+            entry.templates.clear();
+            VoiceRecordings.clear(recordingsRoot,concept);
+        }
         entry.alias=cleaned.isEmpty()?concept:cleaned;
-        if(entry.templates.size()<5)entry.templates.add(sample);
+        if(entry.templates.size()<5) {
+            int index=entry.templates.size();
+            entry.templates.add(sample);
+            try { VoiceRecordings.save(recordingsRoot,concept,index,raw); }
+            catch(java.io.IOException error) {
+                System.err.println("[VoiceMagic] Could not save training recording for playback: "+error.getMessage());
+            }
+        }
         save();return entry.templates.size();
     }
     public synchronized Match match(short[] raw) { return match(raw, s -> true); }
@@ -91,6 +118,15 @@ public final class VoiceProfile {
         }
         if(bestConcept==null || (Double.isFinite(second) && second-best<Math.max(.015,best*.12)))return null;
         return new Match(bestConcept,best);
+    }
+    /** Decode a full spoken phrase into known glyphs, even without pauses between words. */
+    public synchronized List<String> matchContinuous(short[] raw,Predicate<String> allowed,int maxWords) {
+        List<VoicePhraseDecoder.Template> dictionary=new ArrayList<>();
+        for(var e:words.entrySet()) {
+            if(allowed.test(e.getKey())&&e.getValue().templates.size()>=5)
+                dictionary.add(new VoicePhraseDecoder.Template(e.getKey(),List.copyOf(e.getValue().templates)));
+        }
+        return VoicePhraseDecoder.decode(raw,dictionary,maxWords);
     }
     public synchronized List<String> learned() {
         List<String> out=new ArrayList<>();
