@@ -8,6 +8,8 @@ import java.util.function.Consumer;
 public final class MicCapture {
     public interface Listener {
         void onUtterance(short[] pcm);
+        /** Optional partial audio: used only for live visual glyph previews. */
+        default void onPreview(short[] pcm) {}
         void onFinished();
         void onError(String message);
     }
@@ -43,6 +45,7 @@ public final class MicCapture {
         ByteArrayOutputStream utterance = new ByteArrayOutputStream();
         boolean talking=false;
         int silence=0, voiced=0;
+        long lastPreview=0;
         double noise=100;
         int sampleRate=16000;
         try {
@@ -85,6 +88,14 @@ public final class MicCapture {
                 } else if(talking) {
                     silence+=samples;
                     utterance.write(buffer,0,read);
+                }
+                if(talking && voiced>=sampleRate*.48) {
+                    long now=System.nanoTime();
+                    if(now-lastPreview>850_000_000L) {
+                        lastPreview=now;
+                        byte[] clip=utterance.toByteArray();
+                        listener.onPreview(toShorts(clip,clip.length,sampleRate));
+                    }
                 }
                 if(talking && (silence>=sampleRate*.32 || utterance.size()>=sampleRate*2*12.0)) {
                     int trailingBytes=(int)(Math.min(silence,sampleRate*.32)*2);
