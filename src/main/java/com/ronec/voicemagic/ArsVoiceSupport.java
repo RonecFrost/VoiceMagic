@@ -9,7 +9,6 @@ import com.hollingsworth.arsnouveau.common.capability.IPlayerCap;
 import com.hollingsworth.arsnouveau.common.items.SpellBook;
 import com.hollingsworth.arsnouveau.setup.registry.CapabilityRegistry;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
@@ -20,9 +19,65 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Bridges our client-only voice templates to Ars' normal spellbook and glyph data. */
+/**
+ * Books are memory references, not required held items. Inventory inspection
+ * is performed separately on the client (training) and server (authorization).
+ */
 public final class ArsVoiceSupport {
     private ArsVoiceSupport() {}
+
+    public record BookRef(int slot, boolean offhand, ItemStack stack) {
+        public SpellBook item(){return (SpellBook)stack.getItem();}
+        public int tier(){return item().getTier().value;}
+        public AbstractCaster<?> caster(){return SpellCasterRegistry.from(stack);}
+        public String description(){
+            return (offhand?"Offhand":"Inventory "+(slot+1))+" / Tier "+tier();
+        }
+    }
+    public record SavedSpell(BookRef book,int slot,Spell spell) {}
+
+    public static List<BookRef> inventoryBooks(Player player) {
+        List<BookRef> found=new ArrayList<>();
+        if(player==null)return found;
+        // The main inventory contains hotbar + backpack, including selected hand.
+        for(int i=0;i<player.getInventory().items.size();i++) {
+            ItemStack stack=player.getInventory().items.get(i);
+            if(!stack.isEmpty() && stack.getItem() instanceof SpellBook)
+                found.add(new BookRef(i,false,stack));
+        }
+        for(int i=0;i<player.getInventory().offhand.size();i++) {
+            ItemStack stack=player.getInventory().offhand.get(i);
+            if(!stack.isEmpty() && stack.getItem() instanceof SpellBook)
+                found.add(new BookRef(i,true,stack));
+        }
+        return found;
+    }
+
+    public static BookRef strongestBook(Player player) {
+        BookRef strongest=null;
+        for(BookRef book:inventoryBooks(player))
+            if(strongest==null || book.tier()>strongest.tier())strongest=book;
+        return strongest;
+    }
+
+    public static SavedSpell findSavedSpell(Player player,String key) {
+        if(key==null || !key.startsWith("saved:") || !isConceptKey(key))return null;
+        SavedSpell chosen=null;
+        for(BookRef book:inventoryBooks(player)){
+            AbstractCaster<?> caster=book.caster();
+            if(caster==null)continue;
+            for(int i=0;i<caster.getMaxSlots();i++){
+                Spell spell=caster.getSpell(i);
+                if(spell==null || spell.isEmpty())continue;
+                if(!savedKey(spell).equals(key))continue;
+                // Duplicate identical recipes across books: use the most
+                // capable copy, without making an invented spell for the player.
+                if(chosen==null||book.tier()>chosen.book().tier())
+                    chosen=new SavedSpell(book,i,spell);
+            }
+        }
+        return chosen;
+    }
 
     public static boolean isConceptKey(String key) {
         if (key == null || key.length() > 120) return false;
@@ -39,7 +94,7 @@ public final class ArsVoiceSupport {
         return "glyph:" + part.getRegistryName();
     }
 
-    /** Recipe-based identity: modifying a saved spell requires a new voice enrollment. */
+    /** Recipe-based identity remains compatible with existing v0.7 training. */
     public static String savedKey(Spell spell) {
         try {
             MessageDigest digest=MessageDigest.getInstance("SHA-256");
@@ -50,21 +105,6 @@ public final class ArsVoiceSupport {
         } catch(Exception e) {
             throw new IllegalStateException("SHA-256 is required by Java",e);
         }
-    }
-
-    public static boolean heldSpellbook(Player player, InteractionHand hand) {
-        return player.getItemInHand(hand).getItem() instanceof SpellBook;
-    }
-
-    public static InteractionHand findBook(Player player) {
-        if(heldSpellbook(player,InteractionHand.MAIN_HAND))return InteractionHand.MAIN_HAND;
-        if(heldSpellbook(player,InteractionHand.OFF_HAND))return InteractionHand.OFF_HAND;
-        return null;
-    }
-
-    public static AbstractCaster<?> caster(Player player, InteractionHand hand) {
-        if(hand==null || !heldSpellbook(player,hand))return null;
-        return SpellCasterRegistry.from(player.getItemInHand(hand));
     }
 
     public static List<AbstractSpellPart> knownGlyphs(Player player) {
