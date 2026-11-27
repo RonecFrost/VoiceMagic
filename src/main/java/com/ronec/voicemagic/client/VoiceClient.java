@@ -4,7 +4,6 @@ import com.hollingsworth.arsnouveau.api.registry.GlyphRegistry;
 import com.hollingsworth.arsnouveau.api.spell.AbstractCaster;
 import com.hollingsworth.arsnouveau.api.spell.AbstractSpellPart;
 import com.hollingsworth.arsnouveau.api.spell.Spell;
-import com.hollingsworth.arsnouveau.client.gui.book.GuiSpellBook;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.ronec.voicemagic.ArsVoiceSupport;
 import com.ronec.voicemagic.VoiceMagicMod;
@@ -15,7 +14,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -27,6 +25,7 @@ import net.neoforged.neoforge.client.settings.KeyConflictContext;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 import java.awt.Color;
+import com.mojang.math.Axis;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -48,7 +47,6 @@ public final class VoiceClient {
     private static VoiceProfile profile;
     private static MicCapture mic;
     private static boolean capturing,finishing,cancel,wasCastingKeyDown,liveMode;
-    private static InteractionHand heldHand;
     private static final List<String> spoken=new ArrayList<>();
     private static long captureSession;
     private static double smoothLevel;
@@ -92,9 +90,9 @@ public final class VoiceClient {
         profile();
         while(BOOK.consumeClick()){
             if(mc.screen==null&&!capturing&&!finishing){
-                InteractionHand hand=ArsVoiceSupport.findBook(mc.player);
-                if(hand!=null)mc.setScreen(new ArsVoiceBookScreen(new GuiSpellBook(hand)));
-                else announce("Hold an Ars Nouveau spellbook to open voice training");
+                if(!ArsVoiceSupport.inventoryBooks(mc.player).isEmpty())
+                    mc.setScreen(new ArsVoiceBookScreen(null));
+                else announce("Carry an Ars Nouveau spellbook to open voice training");
             }
         }
         while(MODE.consumeClick())if(mc.screen==null)toggleMode();
@@ -120,18 +118,20 @@ public final class VoiceClient {
         Minecraft mc=Minecraft.getInstance();
         VoiceProfile p=profile();
         if(mc.player==null||p==null)return;
-        heldHand=ArsVoiceSupport.findBook(mc.player);
-        if(heldHand==null){announce("Hold an Ars Nouveau spellbook in either hand");return;}
-        AbstractCaster<?> caster=ArsVoiceSupport.caster(mc.player,heldHand);
-        if(caster==null){announce("Held book has no Ars spellcaster");return;}
+        var books=ArsVoiceSupport.inventoryBooks(mc.player);
+        if(books.isEmpty()){announce("Carry an Ars Nouveau spellbook to cast by voice");return;}
         Set<String> allowed=new java.util.HashSet<>();
         if(liveMode){
             for(AbstractSpellPart part:ArsVoiceSupport.knownGlyphs(mc.player))
                 allowed.add(ArsVoiceSupport.glyphKey(part));
         }else{
-            for(int i=0;i<caster.getMaxSlots();i++){
-                Spell spell=caster.getSpell(i);
-                if(spell!=null&&!spell.isEmpty())allowed.add(ArsVoiceSupport.savedKey(spell));
+            for(var book:books){
+                AbstractCaster<?> caster=book.caster();
+                if(caster==null)continue;
+                for(int i=0;i<caster.getMaxSlots();i++){
+                    Spell spell=caster.getSpell(i);
+                    if(spell!=null&&!spell.isEmpty())allowed.add(ArsVoiceSupport.savedKey(spell));
+                }
             }
         }
         boolean trained=false;
@@ -144,7 +144,6 @@ public final class VoiceClient {
         smoothLevel=0;
         final long session=++captureSession;
         final boolean usingGlyphs=liveMode;
-        final InteractionHand castingHand=heldHand;
         final Set<String> accepted=Set.copyOf(allowed);
 
         mic=new MicCapture(false,new MicCapture.Listener(){
@@ -167,7 +166,7 @@ public final class VoiceClient {
                         List<String> completed=List.copyOf(spoken);
                         if(completed.isEmpty())announce("No incantation recognized");
                         else{
-                            String request=buildCast(completed,castingHand,usingGlyphs);
+                            String request=buildCast(completed,usingGlyphs);
                             if(request==null)announce("Spell unavailable or book changed");
                             else PacketDistributor.sendToServer(new ArsVoiceCastPayload(request));
                         }
@@ -182,23 +181,17 @@ public final class VoiceClient {
         mic.start();
     }
 
-    private static String buildCast(List<String> words,InteractionHand hand,boolean glyphs){
+    private static String buildCast(List<String> words,boolean glyphs){
         Minecraft mc=Minecraft.getInstance();
-        if(mc.player==null||hand==null||!ArsVoiceSupport.heldSpellbook(mc.player,hand))return null;
+        if(mc.player==null||ArsVoiceSupport.inventoryBooks(mc.player).isEmpty())return null;
         if(glyphs){
             if(words.size()<2)return null;
             for(String word:words)if(!word.startsWith("glyph:"))return null;
-            return "glyphs|"+hand.name()+"|-|"+String.join(",",words);
+            return "glyphs|inventory|-|"+String.join(",",words);
         }
         if(words.size()!=1||!words.getFirst().startsWith("saved:"))return null;
-        AbstractCaster<?> caster=ArsVoiceSupport.caster(mc.player,hand);
-        if(caster==null)return null;
-        for(int i=0;i<caster.getMaxSlots();i++){
-            Spell s=caster.getSpell(i);
-            if(s!=null&&!s.isEmpty()&&ArsVoiceSupport.savedKey(s).equals(words.getFirst()))
-                return "saved|"+hand.name()+"|"+i+"|"+words.getFirst();
-        }
-        return null;
+        var saved=ArsVoiceSupport.findSavedSpell(mc.player,words.getFirst());
+        return saved==null?null:"saved|inventory|-|"+words.getFirst();
     }
 
     @SubscribeEvent public static void hud(RenderGuiEvent.Post event){
@@ -215,43 +208,32 @@ public final class VoiceClient {
         double input=Math.min(1.0,Math.pow(Math.min(1.0,volume*4.8),.68));
         smoothLevel=smoothLevel*.43+input*.57;
 
-        // One closed circle consisting of two independent waveform semicircles.
-        // Right and left share exactly the top/bottom endpoints, with an
-        // envelope which approaches zero at those points.
+        // Two equal semicircles of thin radial bars. Their endpoints meet at
+        // top and bottom, while each bar reacts to the live microphone energy.
         double t=System.nanoTime()*1e-9;
-        float hue=(float)((t/35.0)%1.0);
-        final int segments=112;
-        final double baseRadius=40;
+        float hue=(float)((t/38.0)%1.0);
+        final int barsPerHalf=72;
+        final double baseline=54.0;
         for(int half=0;half<2;half++){
-            int priorX=0,priorY=0;
-            boolean hasPrevious=false;
-            for(int i=0;i<=segments;i++){
-                double u=(double)i/segments;
-                double angle=-Math.PI/2+(half==0?1:-1)*Math.PI*u;
-                double envelope=Math.pow(Math.sin(Math.PI*u),.75);
-                double waveform=Math.sin(u*17*Math.PI-t*13.0+half*.32)*.79
-                    +Math.sin(u*33*Math.PI+t*8.5+half*1.20)*.21;
-                double displacement=(1.35+smoothLevel*23.5)*envelope*waveform;
-                double radius=baseRadius+displacement;
-                int px=cx+(int)Math.round(Math.cos(angle)*radius);
-                int py=cy+(int)Math.round(Math.sin(angle)*radius);
-                float shade=(hue+(float)u*.09f+half*.012f)%1.0f;
-                int rgb=Color.HSBtoRGB(shade,.62f,.99f)&0xFFFFFF;
-                int argb=(225<<24)|rgb;
-                // Interpolate pixel stamps so even energetic waves remain
-                // connected and don't become disconnected dots.
-                if(hasPrevious){
-                    int steps=Math.max(Math.abs(px-priorX),Math.abs(py-priorY));
-                    for(int d=0;d<=steps;d++){
-                        double f=steps==0?0:(double)d/steps;
-                        int xx=(int)Math.round(priorX+(px-priorX)*f);
-                        int yy=(int)Math.round(priorY+(py-priorY)*f);
-                        g.fill(xx-1,yy-1,xx+2,yy+2,argb);
-                    }
-                }else{
-                    g.fill(px-1,py-1,px+2,py+2,argb);
-                }
-                priorX=px;priorY=py;hasPrevious=true;
+            for(int i=0;i<=barsPerHalf;i++){
+                double u=(double)i/barsPerHalf;
+                double theta=-Math.PI/2+(half==0?1:-1)*Math.PI*u;
+                // Ends taper cleanly so both semicircles join without spikes.
+                double taper=Math.pow(Math.max(0,Math.sin(Math.PI*u)),.74);
+                double modulation=.55 + .28*Math.sin(u*19*Math.PI-t*9.0+half*.7)
+                        + .17*Math.sin(u*36*Math.PI+t*5.5+half*1.3);
+                modulation=Math.max(.12,Math.min(1.0,modulation));
+                double length=2.0+taper*(3.0+(9.0+smoothLevel*33.0)*modulation);
+                int inner=(int)Math.round(baseline-length*.45);
+                int outer=(int)Math.round(baseline+length*.55);
+                float shade=(hue+(float)(u*.08)+half*.014f)%1.0f;
+                int rgb=Color.HSBtoRGB(shade,.6f,.98f)&0xFFFFFF;
+                int color=0xE6000000|rgb;
+                g.pose().pushPose();
+                g.pose().translate(cx,cy,0);
+                g.pose().mulPose(Axis.ZP.rotationDegrees((float)Math.toDegrees(theta+Math.PI/2)));
+                g.fill(-1,-outer,1,-inner,color);
+                g.pose().popPose();
             }
         }
         if(liveMode)drawGlyphs(g,spoken,cx,cy);
@@ -261,7 +243,7 @@ public final class VoiceClient {
     private static void drawGlyphs(GuiGraphics g,List<String> glyphs,int cx,int cy){
         int count=Math.min(glyphs.size(),20);
         if(count==0)return;
-        double radius=69.0;
+        double radius=97.0;
         for(int i=0;i<count;i++){
             String key=glyphs.get(i);
             if(!key.startsWith("glyph:"))continue;
@@ -278,19 +260,15 @@ public final class VoiceClient {
     private static void drawSavedSpell(GuiGraphics g,String key,int cx,int cy){
         Minecraft mc=Minecraft.getInstance();
         if(mc.player==null)return;
-        AbstractCaster<?> caster=ArsVoiceSupport.caster(mc.player,heldHand);
-        if(caster==null)return;
-        for(int i=0;i<caster.getMaxSlots();i++){
-            Spell spell=caster.getSpell(i);
-            if(spell!=null&&!spell.isEmpty()&&ArsVoiceSupport.savedKey(spell).equals(key)){
-                AbstractSpellPart form=spell.getCastMethod();
-                if(form!=null)g.renderItem(new ItemStack(form.getGlyph()),cx-8,cy-16);
-                String name=caster.getSpellName(i);
-                if(name==null||name.isBlank())name="Spell "+(i+1);
-                g.drawCenteredString(mc.font,fit(name,14),cx,cy+10,0xFFE7F4FC);
-                break;
-            }
-        }
+        var found=ArsVoiceSupport.findSavedSpell(mc.player,key);
+        if(found==null)return;
+        Spell spell=found.spell();
+        AbstractSpellPart form=spell.getCastMethod();
+        if(form!=null)g.renderItem(new ItemStack(form.getGlyph()),cx-8,cy-16);
+        AbstractCaster<?> caster=found.book().caster();
+        String name=caster==null?"Spell":caster.getSpellName(found.slot());
+        if(name==null||name.isBlank())name="Spell "+(found.slot()+1);
+        g.drawCenteredString(mc.font,fit(name,14),cx,cy+10,0xFFE7F4FC);
     }
     private static String fit(String s,int n){
         return s.length()>n?s.substring(0,n-3)+"...":s;
