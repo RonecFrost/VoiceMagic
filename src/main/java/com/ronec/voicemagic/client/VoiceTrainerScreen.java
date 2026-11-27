@@ -1,6 +1,8 @@
 package com.ronec.voicemagic.client;
 
 import com.ronec.voicemagic.audio.MicCapture;
+import com.ronec.voicemagic.SpellConcepts;
+import java.util.Locale;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -11,6 +13,7 @@ import net.minecraft.network.chat.Component;
 /** A five-sample guided training wizard. One click begins the complete enrollment session. */
 public final class VoiceTrainerScreen extends Screen {
     private final Screen parent;
+    private final String concept;
     private EditBox word;
     private MicCapture mic;
     private Button recordButton;
@@ -18,9 +21,10 @@ public final class VoiceTrainerScreen extends Screen {
     private int sessionCount;
     private boolean cancelled;
 
-    public VoiceTrainerScreen(Screen parent) {
-        super(Component.literal("Voice Magic - Projectile"));
+    public VoiceTrainerScreen(Screen parent, String concept) {
+        super(Component.literal("Voice Magic - " + SpellConcepts.label(concept)));
         this.parent = parent;
+        this.concept = concept;
     }
 
     @Override protected void init() {
@@ -28,14 +32,14 @@ public final class VoiceTrainerScreen extends Screen {
         word = new EditBox(font, cx - 97, y + 38, 194, 20, Component.literal("Incantation label"));
         word.setMaxLength(24);
         VoiceProfile profile = VoiceClient.profile();
-        word.setValue(profile == null ? "Projectile" : profile.alias("projectile"));
+        word.setValue(profile == null ? "Projectile" : profile.alias(concept));
         addRenderableWidget(word);
         recordButton = addRenderableWidget(Button.builder(Component.literal("Start 5 recordings"), b -> toggleTraining())
                 .bounds(cx - 97, y + 72, 194, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Forget recordings"), b -> {
             if (mic != null) return;
             VoiceProfile p = VoiceClient.profile();
-            if (p != null) p.reset("projectile");
+            if (p != null) p.reset(concept);
             state = "Recordings erased. Choose a new word.";
         }).bounds(cx - 97, y + 105, 194, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Back to Spellbook"), b -> onClose())
@@ -48,11 +52,11 @@ public final class VoiceTrainerScreen extends Screen {
         if (p == null) return;
         String alias = word.getValue().strip();
         if (alias.isEmpty()) { state = "Enter a name for your chosen sound."; return; }
-        if (p.count("projectile") >= 5) {
+        if (p.count(concept) >= 5) {
             state = "Already trained. Choose Forget recordings to retrain.";
             return;
         }
-        sessionCount = p.count("projectile");
+        sessionCount = p.count(concept);
         cancelled = false;
         state = "Listening for pronunciation " + (sessionCount + 1) + "/5 - speak then pause.";
         recordButton.setMessage(Component.literal("Stop recording"));
@@ -61,9 +65,9 @@ public final class VoiceTrainerScreen extends Screen {
             @Override public void onUtterance(short[] sample) {
                 Minecraft.getInstance().execute(() -> {
                     if (cancelled || VoiceTrainerScreen.this.minecraft == null || mic == null) return;
-                    int before = p.count("projectile");
+                    int before = p.count(concept);
                     if (before >= 5) return;
-                    int count = p.teach("projectile", alias, sample);
+                    int count = p.teach(concept, alias, sample);
                     if (count == before) {
                         state = "Couldn't process that sample. Please try again.";
                         return;
@@ -99,10 +103,10 @@ public final class VoiceTrainerScreen extends Screen {
         int cx = width / 2, y = height / 2 - 87;
         g.fill(cx - 121, y - 34, cx + 121, y + 208, 0xE0171C28);
         g.fill(cx - 118, y - 31, cx + 118, y + 205, 0xFF253044);
-        g.drawCenteredString(font, "PROJECTILE", cx, y - 20, 0xFFFFFFFF);
+        g.drawCenteredString(font, SpellConcepts.label(concept).toUpperCase(Locale.ROOT), cx, y - 20, 0xFFFFFFFF);
         g.drawCenteredString(font, "Spell known from the beginning", cx, y - 6, 0xFFADC6E2);
         g.drawString(font, "Your personal spoken sound:", cx - 97, y + 27, 0xFFE3EDF8);
-        int count = VoiceClient.profile() == null ? 0 : VoiceClient.profile().count("projectile");
+        int count = VoiceClient.profile() == null ? 0 : VoiceClient.profile().count(concept);
         g.drawCenteredString(font, "Voice samples: " + count + " / 5", cx, y + 137, 0xFF98F8D7);
         super.render(g, mouseX, mouseY, partialTick);
         g.drawCenteredString(font, fit(state, 56), cx, y + 185, 0xFFE4EAF7);
