@@ -1,0 +1,24 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="voicemagic"
+version="0.2.0"
+displayName="Voice Magic - Spoken Projectile Prototype"
+authors="Ronec / collaborative prototype"
+description='''Teach a personal invented word to an offline recognizer, then cast a translucent rotating projectile by voice.'''
+
+[[dependencies.voicemagic]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.0,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.voicemagic]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1,1.21.2)"
+ordering="NONE"
+side="BOTH"
