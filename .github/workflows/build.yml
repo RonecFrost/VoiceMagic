@@ -1,30 +1,109 @@
-name: Build VoiceMagic NeoForge JAR
+name: Build and Release VoiceMagic NeoForge JAR
+
 on:
   push:
-    branches: [main, voice-riff-v0.5]
+    branches: [main, 'voice-*', 'ars-*']
   workflow_dispatch:
+
 concurrency:
   group: voicemagic-${{ github.ref }}-build
   cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Check out source and previous commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14'
-      - name: Compile NeoForge addon
+
+      - name: Compile NeoForge add-on
         run: gradle clean build --no-daemon --stacktrace
-      - name: Upload compiled JAR
+
+      - name: Upload JAR as workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: VoiceMagic-ArsNouveau-NeoForge-1.21.1-JAR
           path: build/libs/voicemagic-*.jar
           if-no-files-found: error
+
+      # Future release publishing begins with the NEXT version after v0.5.0.
+      # A version bump committed to main is the release signal. Ordinary code
+      # changes and manual builds do not publish a release.
+      - name: Check whether a new version is ready for release
+        id: release_check
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+
+          def version_of(text):
+              match = re.search(r"(?m)^mod_version\s*=\s*([^\s#]+)", text)
+              return match.group(1) if match else None
+
+          with open("gradle.properties", encoding="utf-8") as f:
+              current = version_of(f.read())
+          try:
+              previous_file = subprocess.check_output(
+                  ["git", "show", "HEAD^:gradle.properties"], text=True)
+              previous = version_of(previous_file)
+          except subprocess.CalledProcessError:
+              previous = None
+
+          def version_tuple(value):
+              if not value:
+                  return None
+              match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?", value)
+              return tuple(map(int, match.groups()[:3])) if match else None
+
+          newer = version_tuple(current)
+          old = version_tuple(previous)
+          # Explicitly excludes all previous builds, including v0.5.0.
+          eligible = (newer is not None
+                      and newer > (0, 5, 0)
+                      and previous is not None
+                      and current != previous
+                      and (old is None or newer > old))
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"publish={'true' if eligible else 'false'}\n")
+              if eligible:
+                  out.write(f"version={current}\n")
+          print(f"Version: {current}; prior version: {previous}; publish new release: {eligible}")
+          PY
+
+      - name: Publish versioned JAR to GitHub Releases
+        if: steps.release_check.outputs.publish == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release_check.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+          jar="build/libs/voicemagic-${VERSION}.jar"
+          test -f "$jar" || { echo "Expected compiled JAR not found: $jar"; exit 1; }
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; leaving it unchanged."
+            exit 0
+          fi
+          gh release create "$tag" "$jar" \
+            --target "$GITHUB_SHA" \
+            --title "Voice Magic v${VERSION} — Ars Nouveau Incantations" \
+            --notes "Compiled NeoForge 1.21.1 add-on for Ars Nouveau. Built automatically from commit \`$GITHUB_SHA\`. Install Ars Nouveau and its required dependencies through CurseForge. Replace any older Voice Magic JAR in your mods folder; keep only one version installed."
