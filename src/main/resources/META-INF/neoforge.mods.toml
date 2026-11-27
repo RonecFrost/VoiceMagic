@@ -3,10 +3,10 @@ loaderVersion="[4,)"
 license="MIT"
 [[mods]]
 modId="voicemagic"
-version="0.7.0"
+version="0.8.0"
 displayName="Voice Magic - Ars Nouveau Incantations"
 authors="Ronec / collaborative prototype"
-description='''Cast Ars Nouveau spells by voice. Train five manual samples per incantation, cast improvised glyph words individually, undo with Left Ctrl, and display a responsive two-half waveform around the crosshair.'''
+description='''Cast Ars Nouveau spells by voice. Use any Ars spellbooks carried in inventory for saved and improvised voice incantations, with an enlarged two-half radial bar audio visualizer.'''
 [[dependencies.voicemagic]]
 modId="neoforge"
 type="required"
